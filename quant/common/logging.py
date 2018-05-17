@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from richenum import OrderedRichEnum, OrderedRichEnumValue
 from ..common.settings import CONFIG
@@ -24,13 +25,21 @@ class Logger:
     @staticmethod
     def log(msg, level=LoggingLevel.INFO):
         if level >= getattr(LoggingLevel, CONFIG.LOG_LEVEL.upper()):
-            print("[{color}{level}{reset}] {dt} {msg}".format(
-                color=colors[level.display_name],
-                level=level.display_name,
-                reset="\u001b[0m",
-                dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                msg=msg,
-            ))
+            if sys.stdout.isatty():
+                print("[{color}{level}{reset}] {dt} {msg}".format(
+                    color=colors[level.display_name],
+                    level=level.display_name,
+                    reset="\u001b[0m",
+                    dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    msg=msg,
+                ))
+            else:
+                # When stdout is redirected (to a file, etc.), suppress colorful output
+                print("[{level}] {dt} {msg}".format(
+                    level=level.display_name,
+                    dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    msg=msg,
+                ))
 
     @classmethod
     def debug(cls, msg):
