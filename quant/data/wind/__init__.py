@@ -16,6 +16,7 @@ from dateutil.parser import parse
 
 from . import tables
 from ...common.localize import LOCALIZER
+from ...common.rainbow import rainbow
 from ...common.settings import CONFIG, DATA_PATH
 from ...common.db.sql import SQLClient
 from ...common.logging import Logger
@@ -154,10 +155,7 @@ class WindDB:
             df[col].to_hdf(filename, key="/".join([table_name, col]), format="table", append=True, complevel=9)
 
     def _update_wind_table(self, table_name):
-        if sys.stdout.isatty():
-            sys.stdout.write("Updating table [\u001b[33m{table}\u001b[0m]..........".format(table=table_name))
-        else:
-            sys.stdout.write("Updating table [{table}]..........".format(table=table_name))
+        sys.stdout.write("Updating table [{table}]..........".format(table=rainbow.yellow(table_name)))
         sys.stdout.flush()
         last_update = self._get_last_update(table_name, parse("2000-01-01"))
         table = self._get_table(table_name)
@@ -177,11 +175,7 @@ class WindDB:
             for col in df.columns:
                 df[col].to_hdf(filename, key="/".join([table_name, col]), format="table", append=True, complevel=9)
         self._set_last_update(table_name, df["opdate"].max())
-        if sys.stdout.isatty():
-            sys.stdout.write("\rUpdate table [\u001b[33m{table}\u001b[0m]..........[\u001b[32;1mDone\u001b[32;1m]\n\r\u001b[33m{nrows}\u001b[0m rows updated.\n".format(table=table_name, nrows=len(df)))
-        else:
-            # When stdout is redirected (to a file, etc.), suppress colorful output
-            sys.stdout.write("\rUpdate table [{table}]..........[Done]\n\r{nrows} rows updated.\n".format(table=table_name, nrows=len(df)))
+        sys.stdout.write("\rUpdate table [{table}]..........[Done]\n\r{nrows} rows updated.\n".format(table=rainbow.yellow(table_name), nrows=rainbow.yellow(str(len(df)))))
         sys.stdout.flush()
 
     def get_wind_table(self, table_name: str, columns: Union[List[str], str]=None, format="table") -> pd.DataFrame:

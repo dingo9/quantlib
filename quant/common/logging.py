@@ -1,6 +1,6 @@
-import sys
 from datetime import datetime
 from richenum import OrderedRichEnum, OrderedRichEnumValue
+from ..common.rainbow import rainbow
 from ..common.settings import CONFIG
 
 
@@ -13,11 +13,11 @@ class LoggingLevel(OrderedRichEnum):
 
 
 colors = {
-    "DEBUG": "\u001b[36m",    # CYAN
-    "INFO": "\u001b[34m",     # BLUE
-    "WARNING": "\u001b[35m",  # MEGENTA
-    "ERROR": "\u001b[31;1m",  # BRED
-    "FATAL": "\u001b[31m"     # RED
+    "DEBUG": "cyan",
+    "INFO": "blue",
+    "WARNING": "magenta",
+    "ERROR": "bred",
+    "FATAL": "red",
 }
 
 
@@ -25,21 +25,11 @@ class Logger:
     @staticmethod
     def log(msg, level=LoggingLevel.INFO):
         if level >= getattr(LoggingLevel, CONFIG.LOG_LEVEL.upper()):
-            if sys.stdout.isatty():
-                print("[{color}{level}{reset}] {dt} {msg}".format(
-                    color=colors[level.display_name],
-                    level=level.display_name,
-                    reset="\u001b[0m",
-                    dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    msg=msg,
-                ))
-            else:
-                # When stdout is redirected (to a file, etc.), suppress colorful output
-                print("[{level}] {dt} {msg}".format(
-                    level=level.display_name,
-                    dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    msg=msg,
-                ))
+            print("[{level}] {dt} {msg}".format(
+                level=getattr(rainbow, colors[level.display_name])(level.display_name),
+                dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                msg=msg,
+            ))
 
     @classmethod
     def debug(cls, msg):
