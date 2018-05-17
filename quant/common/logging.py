@@ -11,11 +11,26 @@ class LoggingLevel(OrderedRichEnum):
     FATAL = OrderedRichEnumValue(index=5, canonical_name='FATAL', display_name='FATAL')
 
 
+colors = {
+    "DEBUG": "\u001b[36m",    # CYAN
+    "INFO": "\u001b[34m",     # BLUE
+    "WARNING": "\u001b[35m",  # MEGENTA
+    "ERROR": "\u001b[31;1m",  # BRED
+    "FATAL": "\u001b[31m"     # RED
+}
+
+
 class Logger:
     @staticmethod
     def log(msg, level=LoggingLevel.INFO):
         if level >= getattr(LoggingLevel, CONFIG.LOG_LEVEL.upper()):
-            print("[%s] %s %s" % (level.display_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg))
+            print("[{color}{level}{reset}] {dt} {msg}".format(
+                color=colors[level.display_name],
+                level=level.display_name,
+                reset="\u001b[0m",
+                dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                msg=msg,
+            ))
 
     @classmethod
     def debug(cls, msg):
