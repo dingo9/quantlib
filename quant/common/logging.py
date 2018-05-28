@@ -23,31 +23,30 @@ colors = {
 
 class Logger:
     @staticmethod
-    def log(msg, level=LoggingLevel.INFO):
+    def log(*msgs, level=LoggingLevel.INFO):
         if level >= getattr(LoggingLevel, CONFIG.LOG_LEVEL.upper()):
-            print("[{level}] {dt} {msg}".format(
+            print("[{level}] {dt}".format(
                 level=getattr(rainbow, colors[level.display_name])(level.display_name),
                 dt=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                msg=msg,
-            ))
+            ), *msgs)
 
     @classmethod
-    def debug(cls, msg):
-        return cls.log(msg, level=LoggingLevel.DEBUG)
+    def debug(cls, *msgs):
+        return cls.log(*msgs, level=LoggingLevel.DEBUG)
 
     @classmethod
-    def info(cls, msg):
-        return cls.log(msg, level=LoggingLevel.INFO)
+    def info(cls, *msgs):
+        return cls.log(*msgs, level=LoggingLevel.INFO)
 
     @classmethod
-    def warn(cls, msg):
-        return cls.log(msg, level=LoggingLevel.WARNING)
+    def warn(cls, *msgs):
+        return cls.log(*msgs, level=LoggingLevel.WARNING)
 
     @classmethod
-    def error(cls, msg):
-        return cls.log(msg, level=LoggingLevel.ERROR)
+    def error(cls, *msgs):
+        return cls.log(*msgs, level=LoggingLevel.ERROR)
 
     @classmethod
-    def fatal(cls, msg):
-        return cls.log(msg, level=LoggingLevel.FATAL)
+    def fatal(cls, *msgs):
+        return cls.log(*msgs, level=LoggingLevel.FATAL)
     

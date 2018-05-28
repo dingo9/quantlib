@@ -63,7 +63,7 @@ class MonthlyCalendar:
         """
         holidays = trading_calendar.holidays
         day = parse(self.first_day())
-        while day in holidays:
+        while day in holidays or day.weekday() > 4:
             day += timedelta(days=1)
         if format_str:
             return day.strftime("%Y-%m-%d")
@@ -81,7 +81,7 @@ class MonthlyCalendar:
         """
         holidays = trading_calendar.holidays
         day = parse(self.last_day())
-        while day in holidays:
+        while day in holidays or day.weekday() > 4:
             day -= timedelta(days=1)
         if format_str:
             return day.strftime("%Y-%m-%d")

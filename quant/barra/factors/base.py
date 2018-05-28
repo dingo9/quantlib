@@ -4,7 +4,7 @@ import xarray as xr
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 from ..entities.portfolio import get_estimation_universe
-from ...common.localize import LOCALIZER
+from ...common.decorators import LOCALIZER
 from ...common.logging import Logger
 from ...data import wind
 from ...transform import compute_zscore

@@ -15,7 +15,7 @@ class AlphaReport:
         data.index = pd.to_datetime(data.index)
         self.data = data        
         self.name = name
-        self.weight = self.data.div(self.data.abs().sum(0), 1)
+        self.weight = self.data.sub(self.data.mean(1), 0).div(self.data.abs().sum(1), 0)
 
     def generate_report(self):
         h = HTMLBase()
@@ -67,7 +67,7 @@ class AlphaReport:
         """
         因子每期的覆盖率（有效值比例）
         """
-        Logger.info("因子每期的覆盖率（有效值比例）")
+        Logger.debug("因子每期的覆盖率（有效值比例）")
         cap = wind.get_wind_data("AShareEODDerivativeIndicator", "s_val_mv")
         available = cap.dropna(how='all').notnull().sum(1)
         covered = self.data.dropna(how='all').notnull().sum(1)
@@ -79,7 +79,7 @@ class AlphaReport:
         """
         因子的横截面分布
         """
-        Logger.info("因子的横截面分布")
+        Logger.debug("因子的横截面分布")
         sns.distplot(pd.melt(self.data)['value'].dropna(), kde=False, norm_hist=True)
         skewness = self.data.skew(1).mean()
         kurtosis = self.data.kurt(1).mean()
@@ -98,8 +98,8 @@ class AlphaReport:
         """
         单因子排序分组收益率
         """
-        Logger.info("单因子排序分组收益率")
-        rtns = wind.get_wind_data("AShareEODPrices", "s_dq_pctchange").replace(0, np.nan) / 100
+        Logger.debug("单因子排序分组收益率")
+        rtns = wind.get_wind_data("AShareEODPrices", "s_dq_pctchange").replace(0, np.nan).shift(-1) / 100
         common_dates = sorted(set(self.data.index) & set(rtns.index))
         group_rtns = {}
         for date in common_dates:
@@ -126,7 +126,7 @@ class AlphaReport:
         """
         日内alpha分布
         """
-        Logger.info("日内alpha分布")
+        Logger.debug("日内alpha分布")
         last_c = wind.get_wind_data("AShareEODPrices", "s_dq_adjclose")
         this_o = wind.get_wind_data("AShareEODPrices", "s_dq_adjopen").shift(-1)
         this_v = (wind.get_wind_data("AShareEODPrices", "s_dq_avgprice") * wind.get_wind_data("AShareEODPrices", "s_dq_adjfactor")).shift(-1)
@@ -135,15 +135,7 @@ class AlphaReport:
         next_o = this_o.shift(-1)
         next_v = this_v.shift(-1)
         next_c = this_c.shift(-1)
-        labels = [
-            "last_c",
-            "this_o",
-            "this_v",
-            "this_c",
-            "next_o",
-            "next_v",
-            "next_c",
-        ]
+        labels = ["last_c", "this_o", "this_v", "this_c", "next_o", "next_v", "next_c",]
         alphas = [
             0,
             self._profit(self.weight, np.log(this_o / last_c)).mean(),

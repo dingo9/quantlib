@@ -15,7 +15,7 @@ import sqlalchemy.sql as sql
 from dateutil.parser import parse
 
 from . import tables
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...common.rainbow import rainbow
 from ...common.settings import CONFIG, DATA_PATH
 from ...common.db.sql import SQLClient

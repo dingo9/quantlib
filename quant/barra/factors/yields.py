@@ -4,7 +4,7 @@ import xarray as xr
 from tqdm import tqdm
 import statsmodels.api as sm
 from ...data import wind
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...common.logging import Logger
 from ...transform import get_rtn
 from .base import Factor, Descriptor

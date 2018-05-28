@@ -33,7 +33,7 @@ class DataFrameSerializer(SerializerBase):
             data = json_data
         df = pd.DataFrame(**data)
         try:
-            df.index = pd.to_datetime(df.index).tz_localize("Asia/Shanghai")
+            df.index = pd.to_datetime(df.index) # .tz_localize("Asia/Shanghai")
         except ValueError:
             pass
         return df

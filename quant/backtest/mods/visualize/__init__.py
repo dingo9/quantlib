@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 from IPython.display import display, IFrame
 from ...common.events import EventType
 from ...common.mods import ModManager, AbstractMod
-from ....analysis import get_factor_exposure
 from ....data import wind
-from ....analysis.barra import Factor
+from ....barra import Factor
+from ....common.math_helpers import get_factor_exposure
 from ....common.settings import CONFIG
 from ....common.logging import Logger
 
@@ -26,7 +26,7 @@ def in_ipynb():
     try:
         from IPython import get_ipython, terminal
         this = get_ipython()
-        return not isinstance(this, terminal.interactiveshell.TerminalInteractiveShell)
+        return this and not isinstance(this, terminal.interactiveshell.TerminalInteractiveShell)
     except:
         return False
 

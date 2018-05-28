@@ -12,6 +12,16 @@ Quantlib is a library that serves quantitative trading. It offers data querying,
 This project is specialized in China A Share stocks, and highly depends on Wind database. So the users are expected to be Chinese.
 Thus all the documents and comments will be Chinese.
 
+[中文README](README.CN.md)
+
+## Warnings
+
+This project is at Alpha stage. It is expected to have bugs / errors (espicially for barra factors). Features are limited. There may be massive API changes in the future.
+
+I am currently the only maintainer on this project. Support is limited.
+
+Nonetheless, I hope you like it.
+
 ## Get started
 
 ### Installation
@@ -39,10 +49,13 @@ wind.get_wind_table("AShareST")                               # get special trea
 
 ## Backtest
 
+The old backtest interface is like this:
 ![Backtest Web Visualizer](http://quantlib.readthedocs.io/_static/backtest_web.jpg)
 
-参考相应[文档](http://quantlib.readthedocs.io/tutorial/backtest.html)
+Please refer to the [document](http://quantlib.readthedocs.io/tutorial/backtest.html).
+
+With the help of [Abigale2](http://git.snowwalkerj.cn:81/SnowWalkerJ/Abigale2), you can get a more detailed and aesthetic interface.
 
 ## Documents
 
-文档部署在[Readthedocs](http://quantlib.readthedocs.io/)上。
+Documents are served at [Readthedocs](http://quantlib.readthedocs.io/).

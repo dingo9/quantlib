@@ -95,7 +95,7 @@ class ModManager:
 
     def plug_in(self, strategy):
         """
-        把所有以启用的Mod绑定到策略上
+        把所有已启用的Mod绑定到策略上
         """
         for mod in self.available_mods:
             mod = mod()

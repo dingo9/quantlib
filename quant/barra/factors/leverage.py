@@ -1,7 +1,7 @@
 from datetime import date
 import numpy as np
 import pandas as pd
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...data import wind, to_trade_data
 from ...utils.calendar import TDay
 from .base import Descriptor, Factor

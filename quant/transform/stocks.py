@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from ..data import wind
-from ..common.localize import LOCALIZER
+from ..common import LOCALIZER
 
 
 def get_rtn(x: pd.Series, rtn_len: int, shift: bool= False):

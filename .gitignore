@@ -62,6 +62,9 @@ target/
 .idea/
 .vscode/
 
+# Coverage
+cover
+
 # Private
 private/
 *.h5

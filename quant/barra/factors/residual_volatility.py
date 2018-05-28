@@ -2,7 +2,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...common.math_helpers import exponential_decay_weight, Rolling
 from ...data import wind
 from ..entities import get_estimation_universe

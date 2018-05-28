@@ -6,7 +6,7 @@ quantlib提供一些在命令行使用的快捷命令，通过 ``python -m quant
 数据集管理
 ##########
 
-quantlib使用 ``quant.common.localizer.Localizer`` 来缓存数据，这些数据默认保存在 ``~/.quantlib/data`` 目录下，每个数据集保存成一个hdf5文件。
+quantlib使用 ``quant.common.decorators.Localizer`` 来缓存数据，这些数据默认保存在 ``~/.quantlib/data`` 目录下，每个数据集保存成一个hdf5文件。
 每个文件中可以有多个DataFrame数据。 ``python -m quant data`` 命令可以用来管理这些数据集。
 
 列出数据集名称

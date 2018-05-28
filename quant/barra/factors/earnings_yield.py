@@ -1,6 +1,7 @@
+# TODO: use gross indicators instead of per-share ones
 import numpy as np
 import pandas as pd
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...data import wind, to_trade_data
 from .base import Descriptor, Factor
 

@@ -1,6 +1,6 @@
 import pandas as pd
 from pandas.tseries.offsets import CustomBusinessDay, BDay
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 
 
 __all__ = ["TradingCalendar"]

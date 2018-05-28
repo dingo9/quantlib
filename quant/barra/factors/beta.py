@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from tqdm import tqdm
-from ...common.localize import LOCALIZER
+from ...common import LOCALIZER
 from ...common.math_helpers import exponential_decay_weight
 from ...data import wind
 from ..entities import get_estimation_universe

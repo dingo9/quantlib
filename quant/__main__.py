@@ -6,9 +6,9 @@ from collections import defaultdict
 import fire
 import numpy as np
 import pandas as pd
-from .data import wind
-from .common.settings import CONFIG, DATA_PATH, MAIN_PATH
-from .common.logging import Logger
+from quant.data import wind
+from quant.common.settings import CONFIG, DATA_PATH, MAIN_PATH
+from quant.common.logging import Logger
 
 
 def load_class_from_file(path):
@@ -113,7 +113,7 @@ class QuantMain:
 
         config_path = os.path.join(MAIN_PATH, "constraint.json")
         config = json.load(open(config_path))
-        from .backtest import ConstraintStrategy
+        from quant.backtest import ConstraintStrategy
         if debug:
             import ipdb; ipdb.set_trace()
         strategy = ConstraintStrategy(config, predicted, name=key.replace("/", "_"))
