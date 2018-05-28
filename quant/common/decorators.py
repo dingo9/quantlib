@@ -121,7 +121,8 @@ def single_instance(wrapped):
     _result = None
     @wraps(wrapped)
     def func(*args, **kwargs):
+        nonlocal _result
         if _result is None:
-            _result = wrapped(*args, **kwags)
+            _result = wrapped(*args, **kwargs)
         return _result
     return func
