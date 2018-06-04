@@ -1,4 +1,3 @@
-# TODO: use gross indicators instead of per-share ones
 import numpy as np
 import pandas as pd
 from ...common import LOCALIZER
