@@ -56,4 +56,7 @@ class IndustryFactor(Factor):
         return self.data
 
 
-INDUSTRY_FACTORS = _build_industry_factors()
+try:
+    INDUSTRY_FACTORS = _build_industry_factors()
+except Exception:
+    INDUSTRY_FACTORS = {}
