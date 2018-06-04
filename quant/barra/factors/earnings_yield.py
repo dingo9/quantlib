@@ -18,8 +18,8 @@ class EPFWD(Descriptor):
     """
     @LOCALIZER.wrap(filename="descriptors", const_key="epfwd")
     def get_raw_value(self):
-        capitalization = wind.get_wind_data("AShareEODPrices", "s_dq_close")
-        earnings = wind.get_consensus_data('eps_avg', 1)
+        capital = wind.get_wind_data("AShareEODDerivativeIndicator", "s_dq_mv")
+        earnings = wind.get_consensus_data("net_profit_avg", 1)
         return earnings / capitalization
 
 
@@ -49,8 +49,9 @@ class EToP(Descriptor):
     """
     @LOCALIZER.wrap(filename="descriptors", const_key="etop")
     def get_raw_value(self):
-        price = wind.get_wind_data("AShareEODPrices", "s_dq_close")
-        eps = to_trade_data(wind.get_wind_data("AShareFinancialIndicator", "s_fa_eps_basic", index="ann_dt"))
-        return eps / price
+        # ashareincome.net_profit_excl_min_int_inc / size
+        earnings = wind.get_wind_data("AShareIncome", "net_profit_excl_min_int_inc", index="ann_dt")
+        capital = wind.get_wind_data("AShareEODDerivativeIndicator", "s_dq_mv")
+        return earnings / capital
 
 EarningsYield = Factor("EarningsYield", [EPFWD(), CEToP(), EToP()], [0.68, 0.21, 0.11])

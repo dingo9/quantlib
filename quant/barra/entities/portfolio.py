@@ -1,5 +1,6 @@
 import pandas as pd
 from ...data import wind
+from ...common import single_instance
 
 
 class Portfolio:
@@ -14,12 +15,9 @@ class Portfolio:
         return self._rtn
 
 
-__estimation_universe = None
+@single_instance
 def get_estimation_universe():
-    global __estimation_universe
-    if __estimation_universe is None:
-        size = wind.get_wind_data("AShareEODDerivativeIndicator", "s_val_mv")
-        weight = pd.DataFrame({idx: row / row.sum() for idx, row in size.iterrows()}).T.dropna(how='all')
-        __estimation_universe = Portfolio(weight)
-    return __estimation_universe
+    size = wind.get_wind_data("AShareEODDerivativeIndicator", "s_val_mv")
+    weight = pd.DataFrame({idx: row / row.sum() for idx, row in size.iterrows()}).T.dropna(how='all')
+    return Portfolio(weight)
 
