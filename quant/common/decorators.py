@@ -1,6 +1,6 @@
 import os
 from inspect import signature
-from functools import wraps
+from functools import wraps, singledispatch, update_wrapper
 import pandas as pd
 from tables.exceptions import HDF5ExtError
 from ..common.settings import DATA_PATH
@@ -126,3 +126,12 @@ def single_instance(wrapped):
             _result = wrapped(*args, **kwargs)
         return _result
     return func
+
+
+def method_dispatch(func):
+    dispatcher = singledispatch(func)
+    def wrapper(*args, **kw):
+        return dispatcher.dispatch(args[1].__class__)(*args, **kw)
+    wrapper.register = dispatcher.register
+    update_wrapper(wrapper, func)
+    return wrapper

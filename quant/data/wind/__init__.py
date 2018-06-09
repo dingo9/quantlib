@@ -6,16 +6,17 @@ import pickle
 from inspect import signature
 import warnings
 from datetime import date, datetime
-from typing import List, Union
+from typing import List, Union, Set
 
 import numpy as np
 import pandas as pd
 import sqlalchemy as sa
 import sqlalchemy.sql as sql
 from dateutil.parser import parse
+import lazy_object_proxy
 
 from . import tables
-from ...common import LOCALIZER
+from ...common import LOCALIZER, single_instance, method_dispatch
 from ...common.rainbow import rainbow
 from ...common.settings import CONFIG, DATA_PATH
 from ...common.db.sql import SQLClient
@@ -39,129 +40,121 @@ def to_trade_data(data):
     return final_data
 
 
-class WindDB:
-    """万得金融数据库借口"""
+class UpdateRecoder:
+    """
+    注册表用于记录每个数据库的最后更新时间，方便增量更新
+    """
     def __init__(self):
-        self.wind_connection = None
-        self.__registry = self._init_registry()
+        self.path = os.path.join(DATA_PATH, "registry.pkl")
+        self.records = self.load_or_create()
 
-    def _init_registry(self):
-        """
-        初始化注册表。注册表用于记录每个数据库的最后更新时间，方便增量更新
-        """
+    def get_last_update(self, table_name: str, default=None) -> datetime:
+        return self.records.get(table_name, default)
+
+    def set_last_update(self, table_name: str, time):
+        self.records[table_name] = time
+        self.dump()
+
+    def dump(self):
+        with open(self.path, "wb") as f:
+            pickle.dump(self.records, f)
+
+    def load(self):
+        with open(self.path, "rb") as f:
+            records = pickle.load(f)
+
+    def load_or_create(self):
         try:
-            with open(os.path.join(DATA_PATH, "registry.pkl"), "rb") as f:
-                registry = pickle.load(f)
-        except:
-            registry = dict()
-        return registry
+            records = self.load()
+        except Exception:
+            records = dict()
+        return records
 
-    def _get_last_update(self, table_name: str, default=None):
-        """
-        获取一个库的最后更新时间
 
-        Parameters
-        ==========
-        table_name: str
-            查询的数据库名称
-        """
-        return self.__registry.get(table_name, default)
-
-    def _set_last_update(self, table_name, time):
-        """
-        更新一个库的最后更新时间
-
-        Parameters
-        ==========
-        table_name: str
-            查询的数据库名称
-        """
-        self.__registry[table_name] = time
-        with open(os.path.join(DATA_PATH, "registry.pkl"), "wb") as f:
-            pickle.dump(self.__registry, f)
+class WindDB:
+    """万得金融数据库接口"""
+    def __init__(self):
+        self.records = UpdateRecoder()
+        self.sql = lazy_object_proxy.Proxy(self.get_wind_connection)
 
     def get_wind_connection(self):
-        if not self.wind_connection:
-            self.wind_connection = SQLClient(
-                host=CONFIG.WIND_HOST,
-                port=CONFIG.WIND_PORT,
-                db_driver=CONFIG.WIND_DB_DRIVER,
-                db_type=CONFIG.WIND_DB_TYPE,
-                db_name=CONFIG.WIND_DB_NAME,
-                username=CONFIG.WIND_USERNAME,
-                password=CONFIG.WIND_PASSWORD,
-                charset=CONFIG.WIND_CHARSET
-            )
-        return self.wind_connection
+        return SQLClient(
+            host=CONFIG.WIND_HOST,
+            port=CONFIG.WIND_PORT,
+            db_driver=CONFIG.WIND_DB_DRIVER,
+            db_type=CONFIG.WIND_DB_TYPE,
+            db_name=CONFIG.WIND_DB_NAME,
+            username=CONFIG.WIND_USERNAME,
+            password=CONFIG.WIND_PASSWORD,
+            charset=CONFIG.WIND_CHARSET
+        )
 
-    def _get_table(self, table_name):
-        try:
-            table = getattr(tables, table_name)
-        except:
-            engine = self.get_wind_connection().engine
-            meta = sa.MetaData()
-            table = sa.Table(table_name, meta, autoload=True, autoload_with=engine)
-        return table
-
-    def _check_columns(self, table_name, columns):
-        if not columns:
-            table = self._get_table(table_name)
-            if isinstance(table, sql.schema.Table):
-                columns = set(col.name for col in table.columns if col.name.lower() != "object_id")
-            else:
-                columns = set(col.name for col in table.__table__.columns if col.name.lower() != "object_id")
+    def get_unfetched_columns(self, table_name, needed_columns=None):
+        if not needed_columns:
+            needed_columns = self.get_all_columns(table_name)
         elif isinstance(columns, str):
-            columns = [columns]
-        columns = set(map(str.lower, columns))
-        existing_columns = self._get_dataset_columns(table_name)
-        if not existing_columns:
-            return columns
-        else:
-            return columns - set(existing_columns)
+            needed_columns = [needed_columns]
+        needed_columns = set(map(str.lower, needed_columns))
+        fetched_columns = self.get_fetched_columns(table_name)
+        return needed_columns - set(fetched_columns)
 
-    def _get_dataset_columns(self, table_name):
+    def get_all_columns(self, table_name):
+        columns = self.sql.get_column_names_from_table(table_name)
+        return columns
+
+    def get_fetched_columns(self, table_name) -> Set[str]:
         filename = os.path.join(DATA_PATH, "wind.h5")
         with pd.HDFStore(filename) as h5:
             data = [tuple(key[1:].split("/")) for key in h5.keys()]
         columns = [col for table, col in data if table.lower() == table_name.lower()]
         return columns
 
-    def _add_wind_columns(self, table_name, columns):
-        Logger.debug("Updating table [{table}] with columns {columns}".format(table=table_name, columns=columns))
-        last_update = self._get_last_update(table_name)
-        table = self._get_table(table_name)
+    def add_wind_columns(self, table_name, columns):
+        Logger.debug(f"Updating table [{table_name}] with columns {columns}")
+        last_update = self.records.get_last_update(table_name)
+        table = self.get_table_from_name(table_name)
         columns = set(columns)
         columns.add("object_id")
-        parse_dates = {col: "%Y%m%d" for col in columns if col.endswith("_dt") or col.endswith("date")}
-        if isinstance(table, sql.schema.Table):
-            opdate = list(filter(lambda col: col.name.lower() == "opdate", table.columns))[0]
-            opdate.table = table
-            sql_statement = sql.select([sa.Column(col) for col in columns]).select_from(table)
-        else:
-            opdate = table.opdate
-            sql_statement = sql.select([getattr(table, col.lower()) for col in columns])
-        
+
+        sql_statement = self.sql_select(table, columns)
+        opdate = self.get_column_from_table(table, "opdate")
         if last_update:
             sql_statement = sql_statement.where(opdate <= last_update)
         else:
-            session = self.get_wind_connection().session
-            last_update = session.query(sql.func.max(opdate))[0][0]
-            self._set_last_update(table_name, last_update)
+            self.update_last_update_time(table_name, opdate)
         Logger.debug(str(sql_statement))
-        engine = self.get_wind_connection().engine
-        df = pd.read_sql_query(sql_statement, engine, index_col="object_id", parse_dates=parse_dates)
+
+        parse_dates = {col: "%Y%m%d" for col in columns if col.endswith("_dt") or col.endswith("date")}
+        df = pd.read_sql_query(
+            sql_statement,
+            self.sql.engine,
+            index_col="object_id",
+            parse_dates=parse_dates
+        )
+
         filename = os.path.join(DATA_PATH, "wind.h5")
         for col in df.columns:
             df[col].to_hdf(filename, key="/".join([table_name, col]), format="table", append=True, complevel=9)
 
-    def _update_wind_table(self, table_name):
+    def sql_select(self, table, columns, last_update):
+        sql_statement = (sql
+            .select([self.sql.get_column_from_table(table, col) for col in columns])
+            .select_from(table)
+        )
+        return sql_statement
+
+    def update_last_update_time(self):
+        last_update = self.sql.session.query(sql.func.max(opdate))[0][0]
+        self.records.set_last_update(table_name, last_update)
+
+    def update_wind_table(self, table_name):
         sys.stdout.write("Updating table [{table}]..........".format(table=rainbow.yellow(table_name)))
         sys.stdout.flush()
-        last_update = self._get_last_update(table_name, parse("2000-01-01"))
-        table = self._get_table(table_name)
-        columns = self._get_dataset_columns(table_name) + ["object_id"]
+        last_update = self.records.get_last_update(table_name, parse("2000-01-01"))
+        table = self.get_table_from_name(table_name)
+        columns = self.get_fetched_columns(table_name) + ["object_id"]
         parse_dates = {col: "%Y%m%d" for col in columns if col.endswith("_dt") or col.endswith("date")}
-        opdate = sa.Column("opdate")
+        opdate = self.sql.get_column_from_table(table, "opdate")
         sql_statement = (
             sql
             .select([sa.Column(col) for col in columns])
@@ -174,11 +167,17 @@ class WindDB:
             filename = os.path.join(DATA_PATH, "wind.h5")
             for col in df.columns:
                 df[col].to_hdf(filename, key="/".join([table_name, col]), format="table", append=True, complevel=9)
-        self._set_last_update(table_name, df["opdate"].max())
+        self.records.set_last_update(table_name, df["opdate"].max())
         sys.stdout.write("\rUpdate table [{table}]..........[Done]\n\r{nrows} rows updated.\n".format(table=rainbow.yellow(table_name), nrows=rainbow.yellow(str(len(df)))))
         sys.stdout.flush()
 
-    def get_wind_table(self, table_name: str, columns: Union[List[str], str]=None, format="table") -> pd.DataFrame:
+
+class WindData:
+    """万得金融数据库接口"""
+    def __init__(self):
+        self.db = WindDB()
+
+    def get_table(self, table_name: str, columns: Union[List[str], str]=None, format="table") -> pd.DataFrame:
         """
         万得数据库原始表
 
@@ -199,12 +198,12 @@ class WindDB:
         ..  code-block::
             python
 
-            wind.get_wind_table("AShareEODPrices", ["s_info_windcode", "trade_dt", "s_dq_adjclose", "s_dq_adjopen"])
+            wind.get_table("AShareEODPrices", ["s_info_windcode", "trade_dt", "s_dq_adjclose", "s_dq_adjopen"])
         """
-        non_existing_columns = self._check_columns(table_name, columns)
-        if non_existing_columns:
-            self._add_wind_columns(table_name, non_existing_columns)
-        columns = columns or self._get_dataset_columns(table_name)
+        unfetched_columns = self.get_unfetched_columns(table_name, columns)
+        if unfetched_columns:
+            self.add_wind_columns(table_name, unfetched_columns)
+        columns = columns or self.get_fetched_columns(table_name)
         filename = os.path.join(DATA_PATH, "wind.h5")
         data = {}
         for col in columns:
@@ -213,7 +212,7 @@ class WindDB:
         return pd.DataFrame(data)
 
     @LOCALIZER.wrap("wind_pivot.h5", keys=["table", "field"], format="fixed")
-    def get_wind_data(self, table: str, field: str, index: str=None, columns: str=None) -> pd.DataFrame:
+    def get_data(self, table: str, field: str, index: str=None, columns: str=None) -> pd.DataFrame:
         """
         获取万得交易数据
 
@@ -234,9 +233,10 @@ class WindDB:
         ..  code-block::
             python
 
-            wind.get_wind_data("AShareEODPrices", "s_dq_pctchange")
+            wind.get_data("AShareEODPrices", "s_dq_pctchange")
         """
-        column_names = [col.name for col in getattr(tables, table).__table__.columns]
+        column_names = self.sql.get_column_names_from_table(table)
+
         if columns is None:
             if "s_info_windcode" in column_names:
                 columns = "s_info_windcode"
@@ -247,7 +247,8 @@ class WindDB:
                 index = "trade_dt"
             else:
                 raise RuntimeError("No index specified for DataFrame.pivot")
-        data = self.get_wind_table(table, columns=[field, index, columns]).drop_duplicates(subset=[index, columns], keep='last')
+    
+        data = self.get_table(table, columns=[field, index, columns]).drop_duplicates(subset=[index, columns], keep='last')
         return data.pivot(index=index, columns=columns, values=field).sort_index()
 
     @LOCALIZER.wrap("wind_index_weight.h5", keys=["table", "s_info_windcode"], format="fixed")
@@ -270,14 +271,19 @@ class WindDB:
             # 获取中证500指数的免费权重
             wind.get_index_weight("AIndexHS300FreeWeight", "000905.SH")
         """
-        # data = self.get_wind_table(table, columns=["trade_dt", "s_con_windcode", "i_weight", "s_info_windcode"])
-        # data = data[data.s_info_windcode == s_info_windcode]
-        table = self._get_table(table)
-        columns = [table.trade_dt, table.i_weight, table.s_con_windcode]
+        table = self.sql.get_table_from_name(table)
+        columns = [
+            self.sql.get_column_from_table(table, "trade_dt"), 
+            self.sql.get_column_from_table(table, "i_weight"),
+            self.sql.get_column_from_table(table, "s_con_windcode"),
+        ]
         sql_statement = sql.select(columns).select_from(table).where(table.s_info_windcode==s_info_windcode)
-        conn = self.get_wind_connection().engine
-        data = pd.read_sql(sql_statement, conn, parse_dates={"trade_dt": "%Y%m%d"})
-        data = data.pivot(index="trade_dt", columns="s_con_windcode", values="i_weight").sort_index().fillna(0) / 100
+        conn = self.sql.engine
+        data = (pd.read_sql(sql_statement, conn, parse_dates={"trade_dt": "%Y%m%d"})
+            .pivot(index="trade_dt", columns="s_con_windcode", values="i_weight")
+            .sort_index()
+            .fillna(0) / 100
+        )
         
         data = to_trade_data(data)
         return data
@@ -457,13 +463,13 @@ class WindDB:
             3: 8
         }
         industry_codes = (self
-            .get_wind_table("AShareIndustriesCode", ["industriesname", "industriescode", "levelnum"])
+            .get_table("AShareIndustriesCode", ["industriesname", "industriescode", "levelnum"])
             .query("levelnum==@level+1")
         )
         industry_codes.industriescode = industry_codes.industriescode.str[:lengths[level]]
         industry_codes, industry_names = zip(*industry_codes[["industriescode", "industriesname"]].to_records(index=False))
         field_name = tables[table]
-        industry = self.get_wind_table(table, ["s_info_windcode", field_name, "entry_dt", "remove_dt"])
+        industry = self.get_table(table, ["s_info_windcode", field_name, "entry_dt", "remove_dt"])
         industry[field_name] = industry[field_name].str[:lengths[level]]
         catetory_dtype = pd.api.types.CategoricalDtype(categories=set(industry_names))
         industry = (self
@@ -504,3 +510,17 @@ class WindDB:
             st_table.loc[daterange, key] = True
         st_table.index.freq = None      # Can't save to hdf with freq
         return st_table
+
+    def get_wind_table(self, *args, **kwargs):
+        """
+        This method is depreciated in favor of `get_table`.
+        """
+        warnings.warn(DeprecationWarning("This method is depreciated in favor of `get_table`."))
+        return self.get_table(*args, **kwargs)
+
+    def get_wind_data(self, *args, **kwargs):
+        """
+        This method is depreciated in favor of `get_data`.
+        """
+        warnings.warn(DeprecationWarning("This method is depreciated in favor of `get_data`."))
+        return self.get_data(*args, **kwargs)

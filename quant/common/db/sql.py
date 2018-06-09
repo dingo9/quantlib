@@ -1,6 +1,7 @@
 """SQL数据库连接"""
 
-import sqlalchemy
+import sqlalchemy as sa
+import sqlalchemy.sql as sql
 from sqlalchemy import Column
 from sqlalchemy.types import VARCHAR, Numeric, DateTime, CLOB, DATE
 from sqlalchemy.ext.declarative import declarative_base
@@ -12,14 +13,14 @@ BaseModel = declarative_base()
 class SQLClient:
     """简单的结构，包含一些SQL连接的信息"""
     def __init__(self,
-                 host='localhost',
-                 port=3306,
-                 username='',
-                 password='',
-                 db_name='quant',
-                 db_type='mysql',
-                 db_driver='pymysql',
-                 charset="utf-8"):
+                host='localhost',
+                port=3306,
+                username='',
+                password='',
+                db_name='quant',
+                db_type='mysql',
+                db_driver='pymysql',
+                charset="utf-8"):
         """
         获得数据库连接
         Args:
@@ -52,8 +53,9 @@ class SQLClient:
                 db_type=db_type,
                 charset=charset,
             )
-        self.engine = sqlalchemy.create_engine(self.sqlalchemy_conn_string, echo=False)
-        self.session = sqlalchemy.orm.sessionmaker(bind=self.engine)()
+        self.engine = sa.create_engine(self.sqlalchemy_conn_string, echo=False)
+        self.session = sa.orm.sessionmaker(bind=self.engine)()
+        self.metadata = sa.MetaData(self.engine, reflect=True)
 
     def table_names(self):
         """返回当前数据库下的所有表名"""
@@ -63,12 +65,18 @@ class SQLClient:
         """查询当前数据库下是否有指定的表名"""
         return self.engine.has_table(table_name, schema)
 
-    def __getattribute__(self, name):
-        try:
-            return object.__getattribute__(self, name)
-        except:
-            if hasattr(self.session, name):
-                return getattr(self.session, name)
-            else:
-                raise AttributeError
+    def get_table_from_name(self, table_name):
+        meta = sa.MetaData()
+        table = sa.Table(table_name, meta, autoload=True, autoload_with=self.engine)
+        return table
+
+    def get_column_names_from_table(self, table_name):
+        table = self.get_table_from_name(table_name)
+        columns = set(col.name.lower() for col in table.columns if col.name.lower() != "object_id")
+        return columns
+
+    def get_column_from_table(self, table, column_name):
+        column = sa.Column(column_name)
+        column.table = table
+        return column
 

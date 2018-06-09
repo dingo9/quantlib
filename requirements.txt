@@ -13,6 +13,7 @@ jinja2
 sklearn
 tqdm
 statsmodels
+lazy_object_proxy
 
 # optional
 # pymysql

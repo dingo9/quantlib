@@ -1,4 +1,4 @@
-from .wind import WindDB, to_trade_data
+from .wind import WindData, to_trade_data
 
 
-wind = WindDB()
+wind = WindData()
