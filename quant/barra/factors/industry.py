@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
+from lazy_object_proxy import Proxy
 from ...data import wind
 from .base import Descriptor, Factor
 
@@ -57,6 +58,6 @@ class IndustryFactor(Factor):
 
 
 try:
-    INDUSTRY_FACTORS = _build_industry_factors()
+    INDUSTRY_FACTORS = lazy_object_proxy.Proxy(_build_industry_factors)
 except Exception:
     INDUSTRY_FACTORS = {}

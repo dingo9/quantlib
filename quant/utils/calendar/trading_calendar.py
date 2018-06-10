@@ -17,15 +17,16 @@ class TradingCalendar:
     def get_holidays():
         from ...data import wind
         calendar = wind.get_wind_table("AShareCalendar", ["trade_days"])
-        trading_days = list(pd.to_datetime(calendar.trade_days).drop_duplicates().sort_values())
-        all_days = pd.date_range(start=trading_days[0], end=trading_days[-1])
-        holidays = sorted(filter(lambda day: day.weekday() < 5, set(all_days) - set(trading_days)))
+        trading_days = set(pd.to_datetime(calendar.trade_days))
+        all_days = pd.date_range(start=min(trading_days), end=max(trading_days))
+        # 全部日期减去交易日再减双休日即得到节假日
+        holidays = sorted(filter(lambda day: day.weekday() < 5, set(all_days) - trading_days))
         return pd.Series(holidays)
 
     @property
     def holidays(self):
         """
-        中国期货市场休市日期
+        中国A股市场休市日期
 
         type: List[str]
         """
@@ -39,7 +40,7 @@ class TradingCalendar:
         try:
             return CustomBusinessDay(holidays=self.holidays)
         except:
-            return BDay
+            return BDay()
 
 trading_calendar = TradingCalendar()
 TDay = trading_calendar.TradingDay

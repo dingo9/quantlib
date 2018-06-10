@@ -1,5 +1,6 @@
 import os
 from inspect import signature
+from types import FunctionType
 from functools import wraps, singledispatch, update_wrapper
 import pandas as pd
 from tables.exceptions import HDF5ExtError
@@ -103,21 +104,41 @@ class Localizer:
 LOCALIZER = Localizer(DATA_PATH)
 
 
+@singledispatch
 def single_instance(wrapped):
     """
     被该装饰器装饰的函数只会被调用一次，其结果会被缓存（但不区分参数）成为全局的单例。
     适合用来建立数据库连接等。
 
-    Example
-    =======
+    Examples
+    ========
 
     ..  code-block:: python
 
+    # 该函数返回的实例是全局唯一的
     @single_instance
     def get_conn():
         return sqlalchemy.create_engine(...)
+    a = get_conn()
+    b = get_conn()
+    assert a is b
+
+    ..  code-block:: python
+
+    # 该类只能实例化一次
+    @single_instance
+    class A:
+        pass
+    a = A()
+    b = A()
+    assert a is b
     
     """
+    pass
+
+
+@single_instance.register(FunctionType)
+def _(wrapped):
     _result = None
     @wraps(wrapped)
     def func(*args, **kwargs):
@@ -128,7 +149,24 @@ def single_instance(wrapped):
     return func
 
 
+@single_instance.register(type)
+def _(cls):
+    _result = None
+    old_method = cls.__new__
+    @wraps(old_method)
+    def new_method(*args, **kwargs):
+        nonlocal _result
+        if _result is None:
+            _result = old_method(*args, **kwargs)
+        return _result
+    cls.__new__ = new_method
+    return cls
+
+
 def method_dispatch(func):
+    """
+    single_dispatch for methods
+    """
     dispatcher = singledispatch(func)
     def wrapper(*args, **kw):
         return dispatcher.dispatch(args[1].__class__)(*args, **kw)

@@ -11,3 +11,5 @@ quant.data.wind
 ..  autoclass:: WindDB
     :members:
 
+..  autoclass:: WindData
+    :members:

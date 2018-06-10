@@ -62,6 +62,7 @@ class UpdateRecoder:
     def load(self):
         with open(self.path, "rb") as f:
             records = pickle.load(f)
+        return records
 
     def load_or_create(self):
         try:
@@ -92,7 +93,7 @@ class WindDB:
     def get_unfetched_columns(self, table_name, needed_columns=None):
         if not needed_columns:
             needed_columns = self.get_all_columns(table_name)
-        elif isinstance(columns, str):
+        elif isinstance(needed_columns, str):
             needed_columns = [needed_columns]
         needed_columns = set(map(str.lower, needed_columns))
         fetched_columns = self.get_fetched_columns(table_name)
@@ -112,12 +113,12 @@ class WindDB:
     def add_wind_columns(self, table_name, columns):
         Logger.debug(f"Updating table [{table_name}] with columns {columns}")
         last_update = self.records.get_last_update(table_name)
-        table = self.get_table_from_name(table_name)
+        table = self.sql.get_table_from_name(table_name)
         columns = set(columns)
         columns.add("object_id")
 
         sql_statement = self.sql_select(table, columns)
-        opdate = self.get_column_from_table(table, "opdate")
+        opdate = self.sql.get_column_from_table(table, "opdate")
         if last_update:
             sql_statement = sql_statement.where(opdate <= last_update)
         else:
@@ -136,14 +137,14 @@ class WindDB:
         for col in df.columns:
             df[col].to_hdf(filename, key="/".join([table_name, col]), format="table", append=True, complevel=9)
 
-    def sql_select(self, table, columns, last_update):
+    def sql_select(self, table, columns):
         sql_statement = (sql
             .select([self.sql.get_column_from_table(table, col) for col in columns])
             .select_from(table)
         )
         return sql_statement
 
-    def update_last_update_time(self):
+    def update_last_update_time(self, table_name, opdate):
         last_update = self.sql.session.query(sql.func.max(opdate))[0][0]
         self.records.set_last_update(table_name, last_update)
 
@@ -200,10 +201,10 @@ class WindData:
 
             wind.get_table("AShareEODPrices", ["s_info_windcode", "trade_dt", "s_dq_adjclose", "s_dq_adjopen"])
         """
-        unfetched_columns = self.get_unfetched_columns(table_name, columns)
+        unfetched_columns = self.db.get_unfetched_columns(table_name, columns)
         if unfetched_columns:
-            self.add_wind_columns(table_name, unfetched_columns)
-        columns = columns or self.get_fetched_columns(table_name)
+            self.db.add_wind_columns(table_name, unfetched_columns)
+        columns = columns or self.db.get_fetched_columns(table_name)
         filename = os.path.join(DATA_PATH, "wind.h5")
         data = {}
         for col in columns:
@@ -235,7 +236,7 @@ class WindData:
 
             wind.get_data("AShareEODPrices", "s_dq_pctchange")
         """
-        column_names = self.sql.get_column_names_from_table(table)
+        column_names = self.db.sql.get_column_names_from_table(table)
 
         if columns is None:
             if "s_info_windcode" in column_names:
@@ -271,14 +272,18 @@ class WindData:
             # 获取中证500指数的免费权重
             wind.get_index_weight("AIndexHS300FreeWeight", "000905.SH")
         """
-        table = self.sql.get_table_from_name(table)
+        table = self.db.sql.get_table_from_name(table)
         columns = [
-            self.sql.get_column_from_table(table, "trade_dt"), 
-            self.sql.get_column_from_table(table, "i_weight"),
-            self.sql.get_column_from_table(table, "s_con_windcode"),
+            self.db.sql.get_column_from_table(table, "trade_dt"), 
+            self.db.sql.get_column_from_table(table, "i_weight"),
+            self.db.sql.get_column_from_table(table, "s_con_windcode"),
         ]
-        sql_statement = sql.select(columns).select_from(table).where(table.s_info_windcode==s_info_windcode)
-        conn = self.sql.engine
+        sql_statement = (sql
+            .select(columns)
+            .select_from(table)
+            .where(self.db.sql.get_column_from_table(table, "s_info_windcode")==s_info_windcode)
+        )
+        conn = self.db.sql.engine
         data = (pd.read_sql(sql_statement, conn, parse_dates={"trade_dt": "%Y%m%d"})
             .pivot(index="trade_dt", columns="s_con_windcode", values="i_weight")
             .sort_index()
@@ -293,14 +298,43 @@ class WindData:
         """
         从AShareDescription表中获取每个股票的基本信息
         """
-        table = self.get_wind_table("AShareDescription")
+        table = self.get_table("AShareDescription")
         table.set_axis(table.s_info_windcode, axis=0)
         return table.drop("s_info_windcode", axis=1)
 
     @LOCALIZER.wrap("wind_pivot.h5", keys=["table", "field", "columns"], format="fixed")
-    def arrange_entry_table(self, table: str, field: str="", columns: str=None):
+    def arrange_entry_table(self, table: Union[str, pd.DataFrame], field: str="", columns: str=None):
         """
         把带有entry_dt, remove_dt的表重新整理成以股票为列、日期为行的透视表
+
+        原数据表样例：
+
+        ================ ========== ==========
+        s_info_windcode  entry_dt   remove_dt
+        ================ ========== ==========
+        XXXXX1.SH        20150101   20150201
+        XXXXX2.SH        20150130   20150307
+        ...              ...        ...
+        ================ ========== ==========
+
+        转换后数据样例：
+
+        =========== =========== ==========
+        trade_dt    XXXXX1.SH   XXXXX2.SH
+        =========== =========== ==========
+        ...         ...         ...
+        2014-12-30  False       False
+        2014-12-30  False       False
+        2015-01-01  True        False
+        2015-01-02  True        False
+        ...         ...         ...
+        2015-01-29  True        False
+        2015-01-30  True        True
+        2015-01-31  True        True
+        2015-02-01  True        True
+        2015-02-02  False       True
+        ...         ...         ...
+        =========== =========== ==========
 
         Parameters
         ==========
@@ -324,36 +358,17 @@ class WindData:
         """
         if isinstance(table, str):
             # 如果table是str，向数据库查询
-            column_names = [col.name for col in getattr(tables, table).__table__.columns]
-            if columns is None:
-                if "s_info_windcode" in column_names:
-                    column = "s_info_windcode"
-                else:
-                    raise RuntimeError("No columns specified for DataFrame.pivot")
-            else:
-                column = columns
+            column_names = self.db.sql.get_column_names_from_table(table)
+            column = columns or "s_info_windcode"
+            if column not in column_names:
+                raise RuntimeError("No field specified for column names")
             if "entry_dt" not in column_names or "remove_dt" not in column_names:
                 raise RuntimeError("`entry_dt` and/or `remove_dt` not in columns. Maybe this table is not suitable for this operation")
-            if field:
-                columns = [field, "entry_dt", "remove_dt", column]
-            else:
-                columns = ["entry_dt", "remove_dt", column]
-            table = self.get_wind_table(table, columns=columns)
+            needed_columns = [field, "entry_dt", "remove_dt", column] if field else ["entry_dt", "remove_dt", column]
+            table = self.get_table(table, columns=needed_columns)
         elif isinstance(table, pd.DataFrame):
             # 如果table是DataFrame，直接使用
-            column_names = set(table.columns)
-            if columns is None:
-                if "s_info_windcode" in column_names:
-                    column = "s_info_windcode"
-                else:
-                    raise RuntimeError("No columns specified for DataFrame.pivot")
-            if "entry_dt" not in column_names or "remove_dt" not in column_names:
-                raise RuntimeError("`entry_dt` and/or `remove_dt` not in columns. Maybe this table is not suitable for this operation")
-            if field:
-                columns = [field, "entry_dt", "remove_dt", column]
-            else:
-                columns = ["entry_dt", "remove_dt", column]
-            assert set(columns).issubset(column_names)
+            pass
         else:
             raise TypeError("table must be either a str or DataFrame")
 
@@ -383,6 +398,7 @@ class WindData:
             data2.append(series)
         data = pd.concat(data2, 1)
         
+        # 有些股票可能不在表里，要把数据补全
         rest_columns = set(columns) - set(data.columns)
         if rest_columns:
             idx = pd.date_range(start_date, end_date, freq=TDay)
@@ -417,7 +433,7 @@ class WindData:
         and consen_data_cycle_typ='263003000'
         order by opdate desc
         """.format(field, est_years)
-        conn = self.get_wind_connection().engine
+        conn = self.db.sql.engine
         df = pd.read_sql_query(sql, conn, parse_dates={'est_dt': '%Y%m%d'}).drop_duplicates(['s_info_windcode', 'est_dt'])
         pivot_table = df.pivot(index='est_dt', columns='s_info_windcode', values=field).ffill()
         return pivot_table
@@ -429,6 +445,7 @@ class WindData:
 
         Parameters
         ==========
+
         table: str
 
             AShareIndustriesClass 中国A股行业分类
@@ -438,6 +455,7 @@ class WindData:
             AShareSECIndustriesClass 中国A股证监会行业分类
 
             AShareIndustriesClassCITICS 中国A股中信行业分类
+
         level: {1, 2, 3}
             行业等级
 
@@ -482,9 +500,13 @@ class WindData:
 
     @LOCALIZER.wrap("wind_basics.h5", const_key="st")
     def get_stock_st(self) -> pd.DataFrame:
+        """
+        This method is deprecated in favor of `arrange_entry_table`. 
+        Use wind.arrange_entry_table('AShareST').fillna(False)
+        """
         from ...utils.calendar import TDay
         warnings.warn(DeprecationWarning(
-            "This method is depreciated in favor of `arrange_entry_table`. "
+            "This method is deprecated in favor of `arrange_entry_table`. "
             "Use wind.arrange_entry_table('AShareST').fillna(False)"))
         table = self.get_wind_table("AShareST")
         table = table[pd.isnull(table.remove_dt) | (table.remove_dt > "2006-01-01")]
@@ -513,14 +535,14 @@ class WindData:
 
     def get_wind_table(self, *args, **kwargs):
         """
-        This method is depreciated in favor of `get_table`.
+        This method is deprecated in favor of `get_table`.
         """
         warnings.warn(DeprecationWarning("This method is depreciated in favor of `get_table`."))
         return self.get_table(*args, **kwargs)
 
     def get_wind_data(self, *args, **kwargs):
         """
-        This method is depreciated in favor of `get_data`.
+        This method is deprecated in favor of `get_data`.
         """
         warnings.warn(DeprecationWarning("This method is depreciated in favor of `get_data`."))
         return self.get_data(*args, **kwargs)
