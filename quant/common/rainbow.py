@@ -45,7 +45,7 @@ class Rainbow:
         this = get_ipython()
         if not this:
             # 普通Python环境，不是IPython
-            return sys.stdout.isatty()
+            return sys.stdout.isatty() and platform.system() != "Windows"
         elif isinstance(this, terminal.interactiveshell.TerminalInteractiveShell):
             # IPython的命令环境
             return sys.stdout.isatty()
