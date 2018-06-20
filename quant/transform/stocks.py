@@ -4,7 +4,7 @@ from ..data import wind
 from ..common import LOCALIZER
 
 
-def get_rtn(x: pd.Series, rtn_len: int, shift: bool= False):
+def get_rtn(x: pd.Series, rtn_len: int, shift: bool=False):
     """
     对价格序列计算收益率序列
 

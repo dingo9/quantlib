@@ -162,7 +162,7 @@ class WindDB:
             .select_from(table)
             .where(opdate > last_update)
         )
-        engine = self.get_wind_connection().engine
+        engine = self.sql.engine
         df = pd.read_sql_query(sql_statement, engine, index_col="object_id", parse_dates=parse_dates)
         if len(df) != 0:
             filename = os.path.join(DATA_PATH, "wind.h5")

@@ -97,7 +97,7 @@ class QuantMain:
         else:
             tables = [table]
         for table in tables:
-            wind._update_wind_table(table)
+            wind.db.update_wind_table(table)
 
     @staticmethod
     def backtest(strategy_filename, key, freq=1, debug=False):
@@ -127,7 +127,7 @@ class QuantMain:
         report = AlphaReport(data, name=key)
         output_name = ".".join(filename.split(".")[:-1]) + key.replace("/", "_") + ".html"
         report.generate_report().render(output_name)
-        
+
 
 if __name__ == "__main__":
     fire.Fire(QuantMain)
