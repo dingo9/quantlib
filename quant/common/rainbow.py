@@ -1,3 +1,4 @@
+import platform
 import sys
 """
 控制彩色输出
@@ -24,6 +25,7 @@ COLORS = dict(
 
 RESET = u"\u001b[0m"
 
+
 class Rainbow:
     def __init__(self):
         if self.is_interactive():
@@ -39,7 +41,7 @@ class Rainbow:
             from IPython import get_ipython, terminal
         except ImportError:
             # 没有安装IPython
-            return sys.stdout.isatty()
+            return sys.stdout.isatty() and platform.system() != "Windows"
         this = get_ipython()
         if not this:
             # 普通Python环境，不是IPython
