@@ -27,31 +27,43 @@ RESET = u"\u001b[0m"
 
 
 class Rainbow:
+    """
+    在终端上显示有颜色的文字
+
+    当输出被重定向到屏幕以外的文件时不产生颜色控制符；
+    在Windows平台的非IPython环境下也不产生颜色控制符。
+
+    Examples
+    --------
+    ..  code-block::
+        python
+
+        from quant.common import Logger, rainbow as rb
+
+        Logger.info(rb.red("This is red"))
+        Logger.info(rb.yellow("This is yellow"))
+        Logger.info(rb.green("This is green"))
+    """
     def __init__(self):
-        if self.is_interactive():
+        if self.enable_color():
             self.colors = COLORS
             self.reset = RESET
         else:
             self.colors = {}
             self.reset = ""
 
-    @staticmethod
-    def is_interactive():
+    def enable_color(self):
+        return self.is_interactive() and (platform.system() != "Windows" or self.is_ipython())
+    
+    def is_interactive(self):
+        return sys.stdout.isatty()
+
+    def is_ipython(self):
         try:
             from IPython import get_ipython, terminal
         except ImportError:
-            # 没有安装IPython
-            return sys.stdout.isatty() and platform.system() != "Windows"
-        this = get_ipython()
-        if not this:
-            # 普通Python环境，不是IPython
-            return sys.stdout.isatty() and platform.system() != "Windows"
-        elif isinstance(this, terminal.interactiveshell.TerminalInteractiveShell):
-            # IPython的命令环境
-            return sys.stdout.isatty()
-        else:
-            # Notebook环境
-            return True
+            return False
+        return get_ipython()
 
     def __getattr__(self, name):
         if name.upper() in COLORS.keys():

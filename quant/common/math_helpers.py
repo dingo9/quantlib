@@ -146,7 +146,6 @@ def exponential_decay_weight(halflife, truncate_length, reverse=True):
     return weights
 
 
-
 class Rolling:
     def __init__(self, data, period, min_periods=None):
         self.data = data
